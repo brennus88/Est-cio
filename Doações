@@ -1,1 +1,81 @@
+import sqlite3
+from datetime import datetime
 
+# Conexão com o banco de dados
+def connect_db():
+    return sqlite3.connect("doacao_comunidade.db")
+
+# Criação das tabelas
+def create_tables():
+    conn = connect_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS doadores (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      nome TEXT NOT NULL,
+                      email TEXT,
+                      telefone TEXT)''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS doacoes (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      doador_id INTEGER,
+                      tipo_doacao TEXT NOT NULL,
+                      quantidade INTEGER,
+                      data_doacao TEXT NOT NULL,
+                      FOREIGN KEY(doador_id) REFERENCES doadores(id))''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS necessidades (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      descricao TEXT NOT NULL,
+                      quantidade_necessaria INTEGER,
+                      quantidade_recebida INTEGER DEFAULT 0)''')
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS distribuicoes (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      tipo_doacao TEXT NOT NULL,
+                      quantidade_distribuida INTEGER,
+                      data_distribuicao TEXT NOT NULL)''')
+
+    conn.commit()
+    conn.close()
+
+# Cadastro de um novo doador
+def cadastrar_doador(nome, email, telefone):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO doadores (nome, email, telefone) VALUES (?, ?, ?)", 
+                   (nome, email, telefone))
+    conn.commit()
+    conn.close()
+
+# Registro de uma nova doação
+def registrar_doacao(doador_id, tipo_doacao, quantidade):
+    conn = connect_db()
+    cursor = conn.cursor()
+    data_doacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO doacoes (doador_id, tipo_doacao, quantidade, data_doacao) VALUES (?, ?, ?, ?)", 
+                   (doador_id, tipo_doacao, quantidade, data_doacao))
+    conn.commit()
+    conn.close()
+
+# Registro de uma nova necessidade
+def registrar_necessidade(descricao, quantidade_necessaria):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO necessidades (descricao, quantidade_necessaria) VALUES (?, ?)", 
+                   (descricao, quantidade_necessaria))
+    conn.commit()
+    conn.close()
+
+# Exemplo de uso do sistema
+if __name__ == "__main__":
+    create_tables()  # Criar as tabelas no banco de dados (executar apenas uma vez)
+    
+    # Cadastrar um doador
+    cadastrar_doador("Pedro", "pedro@gmail.com", "12345-6789")
+    
+    # Registrar uma doação
+    registrar_doacao(1, "Alimentos", 10)
+    
+    # Registrar uma nova necessidade
+    registrar_necessidade("Roupas para crianças", 50)
