@@ -1,0 +1,1008 @@
+# Projeto Android: Biblioteca Condominial
+
+---
+
+## Estrutura de pastas sugerida
+```
+app/
+ ├─ build.gradle
+ ├─ src/
+ │   ├─ main/
+ │   │   ├─ AndroidManifest.xml
+ │   │   ├─ java/com/condominio/biblioteca/
+ │   │   │   ├─ BibliotecaApp.kt
+ │   │   │   ├─ MainActivity.kt
+ │   │   │   ├─ data/
+ │   │   │   │   ├─ local/
+ │   │   │   │   │   ├─ AppDatabase.kt
+ │   │   │   │   │   ├─ BookDao.kt
+ │   │   │   │   │   ├─ ResidentDao.kt
+ │   │   │   │   │   └─ LoanDao.kt
+ │   │   │   │   ├─ model/
+ │   │   │   │   │   ├─ Book.kt
+ │   │   │   │   │   ├─ Resident.kt
+ │   │   │   │   │   └─ Loan.kt
+ │   │   │   │   └─ repository/
+ │   │   │   │       └─ LibraryRepository.kt
+ │   │   │   ├─ ui/
+ │   │   │   │   ├─ navigation/NavGraph.kt
+ │   │   │   │   ├─ theme/Color.kt
+ │   │   │   │   ├─ theme/Theme.kt
+ │   │   │   │   ├─ theme/Type.kt
+ │   │   │   │   └─ screens/
+ │   │   │   │       ├─ BookListScreen.kt
+ │   │   │   │       ├─ BookFormScreen.kt
+ │   │   │   │       ├─ ResidentListScreen.kt
+ │   │   │   │       ├─ LoanScreen.kt
+ │   │   │   │       └─ ReportsScreen.kt
+ │   │   │   └─ viewmodel/
+ │   │   │       ├─ BookViewModel.kt
+ │   │   │       ├─ ResidentViewModel.kt
+ │   │   │       └─ LoanViewModel.kt
+ └─
+settings.gradle
+build.gradle (Project)
+```
+
+---
+
+## Arquivos de build (exemplos de versão estáveis)
+
+### `settings.gradle`
+```kotlin
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "BibliotecaCondominial"
+include(":app")
+```
+
+### `build.gradle` (Project)
+```kotlin
+buildscript {
+    dependencies {
+        // (opcional) ferramentas de navegação Safe Args para Compose não são necessárias
+    }
+}
+
+plugins {
+    id("com.android.application") version "8.2.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+    id("kotlin-kapt") version "1.9.22" apply false
+}
+```
+
+### `app/build.gradle`
+```kotlin
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("kotlin-kapt")
+}
+
+android {
+    namespace = "com.condominio.biblioteca"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.condominio.biblioteca"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    // Compose BOM para alinhar versões
+    implementation(platform("androidx.compose:compose-bom:2024.02.01"))
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Navegação Compose
+    implementation("androidx.navigation:navigation-compose:2.7.6")
+
+    // Lifecycle / ViewModel
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    // Room
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Accompanist (opcional)
+    // implementation("com.google.accompanist:accompanist-systemuicontroller:0.31.6-rc")
+}
+```
+
+---
+
+## Manifesto
+
+### `app/src/main/AndroidManifest.xml`
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name=".BibliotecaApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Biblioteca"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+```
+
+---
+
+## Camada de dados (Room)
+
+### `data/model/Book.kt`
+```kotlin
+package com.condominio.biblioteca.data.model
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "books")
+data class Book(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val author: String,
+    val genre: String? = null,
+    val year: Int? = null,
+    val available: Boolean = true
+)
+```
+
+### `data/model/Resident.kt`
+```kotlin
+package com.condominio.biblioteca.data.model
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "residents")
+data class Resident(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val apartment: String
+)
+```
+
+### `data/model/Loan.kt`
+```kotlin
+package com.condominio.biblioteca.data.model
+
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import java.time.LocalDate
+
+@Entity(
+    tableName = "loans",
+    foreignKeys = [
+        ForeignKey(entity = Book::class, parentColumns = ["id"], childColumns = ["bookId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Resident::class, parentColumns = ["id"], childColumns = ["residentId"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("bookId"), Index("residentId")]
+)
+data class Loan(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val residentId: Long,
+    val loanDate: LocalDate,
+    val dueDate: LocalDate,
+    val returnDate: LocalDate? = null
+)
+```
+
+> **Nota**: Room não possui conversor nativo para `LocalDate`. Criaremos `TypeConverters`.
+
+### `data/local/AppDatabase.kt`
+```kotlin
+package com.condominio.biblioteca.data.local
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
+import com.condominio.biblioteca.data.model.Book
+import com.condominio.biblioteca.data.model.Loan
+import com.condominio.biblioteca.data.model.Resident
+
+@Database(entities = [Book::class, Resident::class, Loan::class], version = 1)
+@TypeConverters(DateConverters::class)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun bookDao(): BookDao
+    abstract fun residentDao(): ResidentDao
+    abstract fun loanDao(): LoanDao
+
+    companion object {
+        @Volatile private var INSTANCE: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                "biblioteca.db"
+            ).build().also { INSTANCE = it }
+        }
+    }
+}
+```
+
+### `data/local/DateConverters.kt`
+```kotlin
+package com.condominio.biblioteca.data.local
+
+import androidx.room.TypeConverter
+import java.time.LocalDate
+
+class DateConverters {
+    @TypeConverter
+    fun fromEpochDay(value: Long?): LocalDate? = value?.let { LocalDate.ofEpochDay(it) }
+
+    @TypeConverter
+    fun localDateToEpochDay(date: LocalDate?): Long? = date?.toEpochDay()
+}
+```
+
+### `data/local/BookDao.kt`
+```kotlin
+package com.condominio.biblioteca.data.local
+
+import androidx.room.*
+import com.condominio.biblioteca.data.model.Book
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface BookDao {
+    @Query("SELECT * FROM books ORDER BY title ASC")
+    fun getAll(): Flow<List<Book>>
+
+    @Query("SELECT * FROM books WHERE id = :id")
+    suspend fun getById(id: Long): Book?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(book: Book): Long
+
+    @Update
+    suspend fun update(book: Book)
+
+    @Delete
+    suspend fun delete(book: Book)
+
+    @Query("UPDATE books SET available = :available WHERE id = :bookId")
+    suspend fun setAvailability(bookId: Long, available: Boolean)
+
+    @Query("SELECT * FROM books WHERE title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%' ORDER BY title ASC")
+    fun search(query: String): Flow<List<Book>>
+}
+```
+
+### `data/local/ResidentDao.kt`
+```kotlin
+package com.condominio.biblioteca.data.local
+
+import androidx.room.*
+import com.condominio.biblioteca.data.model.Resident
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ResidentDao {
+    @Query("SELECT * FROM residents ORDER BY name ASC")
+    fun getAll(): Flow<List<Resident>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(resident: Resident): Long
+
+    @Update
+    suspend fun update(resident: Resident)
+
+    @Delete
+    suspend fun delete(resident: Resident)
+}
+```
+
+### `data/local/LoanDao.kt`
+```kotlin
+package com.condominio.biblioteca.data.local
+
+import androidx.room.*
+import com.condominio.biblioteca.data.model.Loan
+import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
+
+@Dao
+interface LoanDao {
+    @Query("SELECT * FROM loans ORDER BY loanDate DESC")
+    fun getAll(): Flow<List<Loan>>
+
+    @Query("SELECT * FROM loans WHERE returnDate IS NULL")
+    fun getOpenLoans(): Flow<List<Loan>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(loan: Loan): Long
+
+    @Update
+    suspend fun update(loan: Loan)
+
+    @Query("UPDATE loans SET returnDate = :returnDate WHERE id = :loanId")
+    suspend fun closeLoan(loanId: Long, returnDate: LocalDate)
+}
+```
+
+### `data/repository/LibraryRepository.kt`
+```kotlin
+package com.condominio.biblioteca.data.repository
+
+import com.condominio.biblioteca.data.local.BookDao
+import com.condominio.biblioteca.data.local.LoanDao
+import com.condominio.biblioteca.data.local.ResidentDao
+import com.condominio.biblioteca.data.model.Book
+import com.condominio.biblioteca.data.model.Loan
+import com.condominio.biblioteca.data.model.Resident
+import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
+
+class LibraryRepository(
+    private val bookDao: BookDao,
+    private val residentDao: ResidentDao,
+    private val loanDao: LoanDao
+) {
+    // Books
+    fun getBooks(): Flow<List<Book>> = bookDao.getAll()
+    fun searchBooks(query: String): Flow<List<Book>> = bookDao.search(query)
+    suspend fun getBook(id: Long): Book? = bookDao.getById(id)
+    suspend fun addOrUpdate(book: Book): Long = bookDao.insert(book)
+    suspend fun delete(book: Book) = bookDao.delete(book)
+    suspend fun setAvailability(bookId: Long, available: Boolean) = bookDao.setAvailability(bookId, available)
+
+    // Residents
+    fun getResidents(): Flow<List<Resident>> = residentDao.getAll()
+    suspend fun addOrUpdate(resident: Resident): Long = residentDao.insert(resident)
+    suspend fun delete(resident: Resident) = residentDao.delete(resident)
+
+    // Loans
+    fun getLoans(): Flow<List<Loan>> = loanDao.getAll()
+    fun getOpenLoans(): Flow<List<Loan>> = loanDao.getOpenLoans()
+    suspend fun newLoan(bookId: Long, residentId: Long, days: Int = 14): Long {
+        val today = LocalDate.now()
+        val due = today.plusDays(days.toLong())
+        val id = loanDao.insert(Loan(bookId = bookId, residentId = residentId, loanDate = today, dueDate = due))
+        bookDao.setAvailability(bookId, false)
+        return id
+    }
+    suspend fun returnLoan(loanId: Long, bookId: Long) {
+        val today = LocalDate.now()
+        loanDao.closeLoan(loanId, today)
+        bookDao.setAvailability(bookId, true)
+    }
+}
+```
+
+---
+
+## Application e DI simples
+
+### `BibliotecaApp.kt`
+```kotlin
+package com.condominio.biblioteca
+
+import android.app.Application
+import com.condominio.biblioteca.data.local.AppDatabase
+import com.condominio.biblioteca.data.repository.LibraryRepository
+
+class BibliotecaApp : Application() {
+    lateinit var repository: LibraryRepository
+        private set
+
+    override fun onCreate() {
+        super.onCreate()
+        val db = AppDatabase.getInstance(this)
+        repository = LibraryRepository(db.bookDao(), db.residentDao(), db.loanDao())
+    }
+}
+```
+
+---
+
+## ViewModels
+
+### `viewmodel/BookViewModel.kt`
+```kotlin
+package com.condominio.biblioteca.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.condominio.biblioteca.data.model.Book
+import com.condominio.biblioteca.data.repository.LibraryRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class BookViewModel(private val repo: LibraryRepository) : ViewModel() {
+    val books: StateFlow<List<Book>> = repo.getBooks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun search(query: String): StateFlow<List<Book>> = repo.searchBooks(query)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun save(book: Book) = viewModelScope.launch { repo.addOrUpdate(book) }
+    fun delete(book: Book) = viewModelScope.launch { repo.delete(book) }
+}
+```
+
+### `viewmodel/ResidentViewModel.kt`
+```kotlin
+package com.condominio.biblioteca.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.condominio.biblioteca.data.model.Resident
+import com.condominio.biblioteca.data.repository.LibraryRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class ResidentViewModel(private val repo: LibraryRepository) : ViewModel() {
+    val residents: StateFlow<List<Resident>> = repo.getResidents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun save(resident: Resident) = viewModelScope.launch { repo.addOrUpdate(resident) }
+    fun delete(resident: Resident) = viewModelScope.launch { repo.delete(resident) }
+}
+```
+
+### `viewmodel/LoanViewModel.kt`
+```kotlin
+package com.condominio.biblioteca.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.condominio.biblioteca.data.model.Loan
+import com.condominio.biblioteca.data.repository.LibraryRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class LoanViewModel(private val repo: LibraryRepository) : ViewModel() {
+    val loans: StateFlow<List<Loan>> = repo.getLoans()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val openLoans: StateFlow<List<Loan>> = repo.getOpenLoans()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun newLoan(bookId: Long, residentId: Long, days: Int = 14) =
+        viewModelScope.launch { repo.newLoan(bookId, residentId, days) }
+
+    fun returnLoan(loanId: Long, bookId: Long) =
+        viewModelScope.launch { repo.returnLoan(loanId, bookId) }
+}
+```
+
+> Para instanciar ViewModels com dependências, criaremos um simples `ViewModelFactory`.
+
+### `viewmodel/ViewModelFactory.kt`
+```kotlin
+package com.condominio.biblioteca.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.condominio.biblioteca.data.repository.LibraryRepository
+
+class ViewModelFactory(private val repo: LibraryRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        val ctor = when (modelClass) {
+            BookViewModel::class.java -> BookViewModel(repo)
+            ResidentViewModel::class.java -> ResidentViewModel(repo)
+            LoanViewModel::class.java -> LoanViewModel(repo)
+            else -> throw IllegalArgumentException("Unknown ViewModel: $modelClass")
+        }
+        @Suppress("UNCHECKED_CAST")
+        return ctor as T
+    }
+}
+```
+
+---
+
+## UI — Navegação e Telas (Compose)
+
+### `ui/navigation/NavGraph.kt`
+```kotlin
+package com.condominio.biblioteca.ui.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import com.condominio.biblioteca.ui.screens.*
+
+sealed class Routes(val route: String) {
+    data object Books : Routes("books")
+    data object BookForm : Routes("bookForm/{bookId}") { const val ARG = "bookId" }
+    data object Residents : Routes("residents")
+    data object Loans : Routes("loans")
+    data object Reports : Routes("reports")
+}
+
+@Composable
+fun AppNavGraph(navController: NavHostController) {
+    NavHost(navController, startDestination = Routes.Books.route) {
+        composable(Routes.Books.route) { BookListScreen(navController) }
+        composable(Routes.BookForm.route) { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getString(Routes.BookForm.ARG)?.toLongOrNull()
+            BookFormScreen(navController, bookId)
+        }
+        composable(Routes.Residents.route) { ResidentListScreen() }
+        composable(Routes.Loans.route) { LoanScreen() }
+        composable(Routes.Reports.route) { ReportsScreen() }
+    }
+}
+```
+
+### `ui/theme/Color.kt`
+```kotlin
+package com.condominio.biblioteca.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val Primary = Color(0xFF1B5E20)
+val Secondary = Color(0xFF81C784)
+val Tertiary = Color(0xFF4CAF50)
+```
+
+### `ui/theme/Type.kt`
+```kotlin
+package com.condominio.biblioteca.ui.theme
+
+import androidx.compose.material3.Typography
+
+val AppTypography = Typography()
+```
+
+### `ui/theme/Theme.kt`
+```kotlin
+package com.condominio.biblioteca.ui.theme
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+
+private val ColorScheme = lightColorScheme(
+    primary = Primary,
+    secondary = Secondary,
+    tertiary = Tertiary
+)
+
+@Composable
+fun BibliotecaTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = ColorScheme,
+        typography = AppTypography,
+        content = content
+    )
+}
+```
+
+### `ui/screens/BookListScreen.kt`
+```kotlin
+package com.condominio.biblioteca.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import com.condominio.biblioteca.BibliotecaApp
+import com.condominio.biblioteca.data.model.Book
+import com.condominio.biblioteca.ui.navigation.Routes
+import com.condominio.biblioteca.viewmodel.BookViewModel
+import com.condominio.biblioteca.viewmodel.ViewModelFactory
+
+@Composable
+fun BookListScreen(navController: NavController = rememberNavController()) {
+    val app = LocalApp()
+    val vm: BookViewModel = viewModel(factory = ViewModelFactory(app.repository))
+    val books by vm.books.collectAsState()
+    var query by remember { mutableStateOf("") }
+    val results by vm.search(query).collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Acervo") }, actions = {
+                TextButton(onClick = { navController.navigate(Routes.Residents.route) }) { Text("Moradores") }
+                TextButton(onClick = { navController.navigate(Routes.Loans.route) }) { Text("Empréstimos") }
+                TextButton(onClick = { navController.navigate(Routes.Reports.route) }) { Text("Relatórios") }
+            })
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { navController.navigate("bookForm/0") }) {
+                Text("+")
+            }
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Pesquisar título/autor") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            LazyColumn {
+                items(if (query.isBlank()) books else results) { book ->
+                    BookItem(book = book, onClick = {
+                        navController.navigate("bookForm/${book.id}")
+                    })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookItem(book: Book, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() }) {
+        Column(Modifier.padding(16.dp)) {
+            Text(book.title, style = MaterialTheme.typography.titleMedium)
+            Text(book.author, style = MaterialTheme.typography.bodyMedium)
+            val status = if (book.available) "Disponível" else "Emprestado"
+            Text(status, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+```
+
+### `ui/screens/BookFormScreen.kt`
+```kotlin
+package com.condominio.biblioteca.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.condominio.biblioteca.BibliotecaApp
+import com.condominio.biblioteca.data.model.Book
+import com.condominio.biblioteca.viewmodel.BookViewModel
+import com.condominio.biblioteca.viewmodel.ViewModelFactory
+
+@Composable
+fun BookFormScreen(navController: NavController, bookId: Long?) {
+    val app = LocalApp()
+    val vm: BookViewModel = viewModel(factory = ViewModelFactory(app.repository))
+
+    var title by remember { mutableStateOf("") }
+    var author by remember { mutableStateOf("") }
+    var genre by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+
+    LaunchedEffect(bookId) {
+        if (bookId != null && bookId > 0) {
+            vm.save(Book(title = "", author = "")) // ensure dao/table exists before query in preview-only
+            val b = vm.search("").value.firstOrNull { it.id == bookId }
+            // Em produção: usar repo.getBook(bookId)
+        }
+    }
+
+    Scaffold(topBar = { TopAppBar(title = { Text("Cadastro de Livro") }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp)) {
+            OutlinedTextField(title, { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(author, { author = it }, label = { Text("Autor") }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(genre, { genre = it }, label = { Text("Gênero (opcional)") }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(year, { year = it }, label = { Text("Ano (opcional)") }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = {
+                val y = year.toIntOrNull()
+                val book = Book(title = title, author = author, genre = genre.ifBlank { null }, year = y)
+                vm.save(book)
+                navController.popBackStack()
+            }, enabled = title.isNotBlank() && author.isNotBlank()) {
+                Text("Salvar")
+            }
+        }
+    }
+}
+```
+
+### `ui/screens/ResidentListScreen.kt`
+```kotlin
+package com.condominio.biblioteca.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.condominio.biblioteca.data.model.Resident
+import com.condominio.biblioteca.viewmodel.ResidentViewModel
+import com.condominio.biblioteca.viewmodel.ViewModelFactory
+
+@Composable
+fun ResidentListScreen() {
+    val app = LocalApp()
+    val vm: ResidentViewModel = viewModel(factory = ViewModelFactory(app.repository))
+    val residents by vm.residents.collectAsState()
+
+    var name by remember { mutableStateOf("") }
+    var apt by remember { mutableStateOf("") }
+
+    Scaffold(topBar = { TopAppBar(title = { Text("Moradores") }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                OutlinedTextField(name, { name = it }, label = { Text("Nome") }, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                OutlinedTextField(apt, { apt = it }, label = { Text("Apartamento") }, modifier = Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { if (name.isNotBlank() && apt.isNotBlank()) vm.save(Resident(name = name, apartment = apt)) }) {
+                Text("Adicionar")
+            }
+            Spacer(Modifier.height(12.dp))
+            LazyColumn {
+                items(residents) { r ->
+                    ListItem(headlineContent = { Text(r.name) }, supportingContent = { Text("Ap.: ${r.apartment}") })
+                    Divider()
+                }
+            }
+        }
+    }
+}
+```
+
+### `ui/screens/LoanScreen.kt`
+```kotlin
+package com.condominio.biblioteca.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.condominio.biblioteca.data.model.Book
+import com.condominio.biblioteca.data.model.Resident
+import com.condominio.biblioteca.viewmodel.BookViewModel
+import com.condominio.biblioteca.viewmodel.LoanViewModel
+import com.condominio.biblioteca.viewmodel.ResidentViewModel
+import com.condominio.biblioteca.viewmodel.ViewModelFactory
+
+@Composable
+fun LoanScreen() {
+    val app = LocalApp()
+    val booksVm: BookViewModel = viewModel(factory = ViewModelFactory(app.repository))
+    val residentsVm: ResidentViewModel = viewModel(factory = ViewModelFactory(app.repository))
+    val loansVm: LoanViewModel = viewModel(factory = ViewModelFactory(app.repository))
+
+    val books by booksVm.books.collectAsState()
+    val residents by residentsVm.residents.collectAsState()
+    val openLoans by loansVm.openLoans.collectAsState()
+
+    var selectedBook: Book? by remember { mutableStateOf(null) }
+    var selectedResident: Resident? by remember { mutableStateOf(null) }
+
+    Scaffold(topBar = { TopAppBar(title = { Text("Empréstimos") }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp)) {
+            Text("Novo empréstimo", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Dropdown("Livro disponível", books.filter { it.available }) { selectedBook = it }
+            Spacer(Modifier.height(8.dp))
+            Dropdown("Morador", residents) { selectedResident = it }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = {
+                val b = selectedBook; val r = selectedResident
+                if (b != null && r != null) loansVm.newLoan(b.id, r.id)
+            }) { Text("Emprestar") }
+            Spacer(Modifier.height(16.dp))
+            Text("Empréstimos em aberto", style = MaterialTheme.typography.titleMedium)
+            LazyColumn {
+                items(openLoans) { loan ->
+                    ListItem(headlineContent = { Text("Empréstimo #${loan.id}") }, supportingContent = {
+                        Text("Livro ID: ${loan.bookId} · Morador ID: ${loan.residentId} · Prev.: ${loan.dueDate}")
+                    }, trailingContent = {
+                        Button(onClick = { loansVm.returnLoan(loan.id, loan.bookId) }) { Text("Devolver") }
+                    })
+                    Divider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> Dropdown(label: String, items: List<T>, onSelect: (T) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    var selectedText by remember { mutableStateOf("") }
+    Column {
+        OutlinedTextField(
+            value = selectedText,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = { TextButton(onClick = { expanded = true }) { Text("Selecionar") } }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            items.forEach { item ->
+                DropdownMenuItem(text = { Text(item.toString()) }, onClick = {
+                    selectedText = item.toString()
+                    onSelect(item)
+                    expanded = false
+                })
+            }
+        }
+    }
+}
+```
+
+### `ui/screens/ReportsScreen.kt`
+```kotlin
+package com.condominio.biblioteca.ui.screens
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.condominio.biblioteca.viewmodel.BookViewModel
+import com.condominio.biblioteca.viewmodel.LoanViewModel
+import com.condominio.biblioteca.viewmodel.ViewModelFactory
+
+@Composable
+fun ReportsScreen() {
+    val app = LocalApp()
+    val booksVm: BookViewModel = viewModel(factory = ViewModelFactory(app.repository))
+    val loansVm: LoanViewModel = viewModel(factory = ViewModelFactory(app.repository))
+    val books = booksVm.books.collectAsState().value
+    val loans = loansVm.loans.collectAsState().value
+
+    Scaffold(topBar = { TopAppBar(title = { Text("Relatórios") }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp)) {
+            Text("Total de livros: ${books.size}", style = MaterialTheme.typography.titleMedium)
+            Text("Empréstimos totais: ${loans.size}")
+            Text("Em aberto: ${loans.count { it.returnDate == null }}")
+        }
+    }
+}
+```
+
+---
+
+## MainActivity e Providers auxiliares
+
+### `MainActivity.kt`
+```kotlin
+package com.condominio.biblioteca
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.navigation.compose.rememberNavController
+import com.condominio.biblioteca.ui.navigation.AppNavGraph
+import com.condominio.biblioteca.ui.theme.BibliotecaTheme
+
+val LocalApp = staticCompositionLocalOf<BibliotecaApp> { error("App não inicializado") }
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val app = application as BibliotecaApp
+        setContent {
+            BibliotecaTheme {
+                CompositionLocalProvider(LocalApp provides app) {
+                    App()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun App() {
+    val nav = rememberNavController()
+    AppNavGraph(nav)
+}
+```
+
+---
+
+## Observações importantes
+- **Permissões**: não são necessárias permissões especiais para este MVP.
+- **Carregamento de livro por ID no formulário**: para simplificar o exemplo, a tela de edição apresenta um esqueleto. Em produção, injete o `LibraryRepository` e chame `repo.getBook(bookId)` dentro de um `LaunchedEffect` para popular os campos.
+- **Validação**: adicione validações (campos obrigatórios, limites de empréstimo, etc.).
+- **Camada de DI**: para projetos maiores, considere Hilt em vez do `ViewModelFactory` manual.
+- **Testes**: adicione testes de DAO com `Room.inMemoryDatabaseBuilder` e testes de UI usando `compose-ui-test`.
+
+---
+
+## Próximos passos sugeridos
+1. Implementar edição/remoção de livros e moradores nas respectivas telas.
+2. Adicionar filtros por gênero/autor e ordenações.
+3. Enviar notificações (WorkManager) para lembrete de devolução.
+4. Exportar relatórios em CSV/ShareSheet.
+5. Autenticação simples (PIN do síndico) para operações administrativas.
+
+---
