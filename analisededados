@@ -1,0 +1,57 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# --------------------------
+# 1. Simulação de dados
+# --------------------------
+dados = {
+    "Morador": ["Ana", "Carlos", "Beatriz", "João", "Marina", "Paulo", "Ana", "Carlos", "Beatriz", "João"],
+    "Livro": ["1984", "O Hobbit", "Dom Casmurro", "1984", "O Hobbit", "Senhor dos Anéis", "1984", "O Hobbit", "Dom Casmurro", "Senhor dos Anéis"],
+    "Gênero": ["Ficção", "Fantasia", "Romance", "Ficção", "Fantasia", "Fantasia", "Ficção", "Fantasia", "Romance", "Fantasia"],
+    "Data_Empréstimo": pd.date_range("2025-01-01", periods=10, freq="7D")
+}
+
+df = pd.DataFrame(dados)
+
+# --------------------------
+# 2. Estatísticas descritivas
+# --------------------------
+print("Total de empréstimos:", len(df))
+print("\nLivros mais emprestados:")
+print(df["Livro"].value_counts())
+
+print("\nGêneros mais populares:")
+print(df["Gênero"].value_counts())
+
+print("\nMoradores mais engajados:")
+print(df["Morador"].value_counts())
+
+# --------------------------
+# 3. Visualizações
+# --------------------------
+# Estilo de gráfico
+sns.set(style="whitegrid")
+
+# Livros mais emprestados
+plt.figure(figsize=(6,4))
+sns.countplot(y="Livro", data=df, order=df["Livro"].value_counts().index, palette="Blues_r")
+plt.title("Livros mais emprestados")
+plt.xlabel("Quantidade de Empréstimos")
+plt.ylabel("Livro")
+plt.show()
+
+# Gêneros mais lidos
+plt.figure(figsize=(5,4))
+df["Gênero"].value_counts().plot(kind="pie", autopct="%1.1f%%")
+plt.title("Distribuição dos Gêneros")
+plt.ylabel("")
+plt.show()
+
+# Série temporal de empréstimos
+plt.figure(figsize=(7,4))
+df.groupby("Data_Empréstimo").size().plot(marker="o")
+plt.title("Empréstimos ao longo do tempo")
+plt.xlabel("Data")
+plt.ylabel("Número de Empréstimos")
+plt.show()
